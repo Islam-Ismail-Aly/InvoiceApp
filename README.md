@@ -25,5 +25,5 @@ InvoiceApp is a comprehensive invoicing system designed to manage and generate i
 
 ## Technologies Used
 - **Backend**: .NET Core, MS Identity, JWT, AutoMapper, FluentValidation
-- **Frontend**: Angular 17, jQuery
+- **Frontend**: HTML,Bootstrap, jQuery
 - **Database**: SQL Server
