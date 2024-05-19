@@ -1,0 +1,209 @@
+﻿@model InvoiceApp.Web.ViewModels.InvoiceViewModel
+
+@{
+    ViewData["Title"] = "Invoice Details";
+}
+
+<div class="container mt-3">
+    <h4>@ViewData["Title"]</h4>
+    <div class="row">
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="invoiceNo">Invoice Number:</label>
+                <input type="text" id="invoiceNo" name="invoiceNo" class="form-control" value="@Model.InvoiceNo" readonly />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="invoiceDate">Invoice Date:</label>
+                <input type="text" id="invoiceDate" name="invoiceDate" class="form-control" value="@Model.InvoiceDate" />
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="store">Store:</label>
+                <select id="store" name="store" class="form-select">
+                    <option value="">Choose Store</option>
+                    @foreach (var store in ViewBag.Stores)
+                    {
+                        <option value="@store.Id">@store.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <table class="table mt-4">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Unit</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Total</th>
+                <th>Discount</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <select id="item" name="item" class="form-select">
+                        <option selected>Choose Item</option>
+                    </select>
+                </td>
+                <td>
+                    <select id="unit" name="unit" class="form-select">
+                    <option value="">Choose Unit</option>
+                    @foreach (var unit in ViewBag.Units)
+                    {
+                        <option value="@unit.Id">@unit.Name</option>
+                    }
+                </select>
+                </td>
+                <td><input type="number" class="form-control" placeholder="Price" id="price" readonly></td>
+                <td><input type="number" class="form-control" placeholder="Quantity" id="qty"></td>
+                <td><input type="number" class="form-control" placeholder="Total" id="total" readonly></td>
+                <td><input type="number" class="form-control" placeholder="Discount" id="discount"></td>
+                <td>
+                    <button type="button" class="btn btn-danger remove-item" disabled>Remove</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <button type="button" id="addItem" class="btn btn-primary mt-2">Add Item</button>
+
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <button type="submit" id="saveInvoice" class="btn btn-success">Save</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.1/jquery-ui.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            $("#invoiceDate").datepicker();
+
+            function updateTotal(row) {
+                var price = parseFloat(row.find('#price').val()) || 0;
+                var qty = parseInt(row.find('#qty').val()) || 0;
+                var discount = parseFloat(row.find('#discount').val()) || 0;
+                var total = (price * qty) - discount;
+
+                // Update the total field
+                row.find('#total').val(total.toFixed(2));
+            }
+
+            function updateRemoveButtonState() {
+                var rowCount = $('table tbody tr').length;
+                if (rowCount === 1) {
+                    $('table tbody tr .remove-item').attr('disabled', true);
+                } else {
+                    $('table tbody tr .remove-item').attr('disabled', false);
+                }
+            }
+
+            $('#item').focus(function () {
+                $.ajax({
+                    url: '/Invoice/GetItems',
+                    type: 'GET',
+                    success: function (response) {
+                        $('#item').empty().append('<option selected>Choose Item</option>');
+                        $.each(response, function (index, item) {
+                            $('#item').append('<option value="' + item.names + '">' + item.names + '</option>');
+                        });
+                    },
+                    error: function (xhr, status, error) {
+                        console.log("Error:", error);
+                    }
+                });
+            });
+
+            $(document).on('change', '#item', function () {
+                var itemName = $(this).val();
+                var row = $(this).closest('tr');
+                $.ajax({
+                    url: '/Invoice/GetItemDetails',
+                    type: 'GET',
+                    data: { name: itemName },
+                    success: function (item) {
+                        row.find('#price').val(item.price);
+                        row.find('#unit').empty().append('<option selected disabled>Choose Unit</option>');
+                        $.each(item.units, function (index, unit) {
+                            row.find('#unit').append('<option value="' + unit + '">' + unit + '</option>');
+                        });
+                        row.find('#qty').val(item.qty);
+                        row.find('#discount').val(item.discount);
+
+                        updateTotal(row);  // Update total whenever item changes
+                    },
+                    error: function (xhr, status, error) {
+                        console.log("Error fetching item details:", error);
+                    }
+                });
+            });
+
+            $(document).on('keyup', '#qty, #discount', function () {
+                var row = $(this).closest('tr');
+                updateTotal(row);
+            });
+
+            // Add Item button click
+            $('#addItem').click(function () {
+                var newRow = $('table tbody tr:last').clone();
+                newRow.find('input, select').val(''); // Clear the input values in the new row
+                $('table tbody').append(newRow);
+                updateRemoveButtonState(); // Check if remove button should be disabled
+            });
+
+            // Remove Item button click
+            $(document).on('click', '.remove-item', function () {
+                $(this).closest('tr').remove();
+                updateRemoveButtonState(); // Check if remove button should be disabled
+            });
+
+            // Save Invoice button click
+            $('#saveInvoice').click(function () {
+                var items = [];
+                $('table tbody tr').each(function () {
+                    var item = {
+                        Name: $(this).find('#item').val(),
+                        Price: parseFloat($(this).find('#price').val()),
+                        Qty: parseInt($(this).find('#qty').val()),
+                        Discount: parseFloat($(this).find('#discount').val())
+                    };
+                    items.push(item);
+                });
+
+                var invoiceData = {
+                    InvoiceDate: $('#invoiceDate').val(),
+                    StoreId: $('#store').val(),
+                    Items: items
+                };
+
+                $.ajax({
+                    url: '/Invoice/CreateInvoice',
+                    type: 'POST',
+                    data: { invoiceDto: invoiceData },
+                    success: function (response) {
+                        console.log("response",response);
+                        console.log("data",invoiceData);
+                        alert('Invoice saved successfully.');
+                        window.location.reload();
+                    },
+                    error: function (xhr, status, error) {
+                        console.log("Error saving invoice:", error);
+                    }
+                });
+            });
+
+            // Initial call to updateRemoveButtonState to handle the first load
+            updateRemoveButtonState();
+        });
+    </script>
+}
